@@ -28,6 +28,7 @@ def capture(model: ChronosBoltModelForForecasting, context: torch.Tensor) -> tup
     handles = [model.input_patch_embedding.register_forward_hook(make_hook("layer 0"))]
     for i, block in enumerate(model.encoder.block):
         handles.append(block.register_forward_hook(make_hook(f"layer {i+1}")))
+    handles.append(model.encoder.final_layer_norm.register_forward_hook(make_hook("encoder out")))
     try:
         with torch.no_grad():
             out = model(context)
