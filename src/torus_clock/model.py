@@ -1,6 +1,7 @@
 import torch
 from chronos.chronos_bolt import ChronosBoltModelForForecasting, ChronosBoltOutput
 from pathlib import Path
+from typing import Callable
 
 MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
 
@@ -36,3 +37,26 @@ def capture(model: ChronosBoltModelForForecasting, context: torch.Tensor) -> tup
         for h in handles:
             h.remove()
     return captured, out
+
+def run_with_edit(model: ChronosBoltModelForForecasting, context: torch.Tensor, layer: str, edit: Callable[[torch.Tensor], torch.Tensor]) -> ChronosBoltOutput:
+    """
+    Run the model, replacing the patch tokens at `layer` with edit(tokens).
+
+    `layer` uses the same names as `capture`: "layer 0" ... "layer 6".
+    The [REG] token, if present, is left unchanged.
+    """
+    n_patch = context.shape[1] // model.chronos_config.input_patch_size
+    module = (model.input_patch_embedding if layer == "layer 0" else model.encoder.block[int(layer.split()[-1]) - 1])
+    
+    def hook(module, inputs, output):
+        h = output[0] if isinstance(output, tuple) else output
+        h = h.clone()
+        h[:, :n_patch] = edit(h[:, :n_patch])
+        return (h, *output[1:]) if isinstance(output, tuple) else h
+
+    handle = module.register_forward_hook(hook)
+    try:
+        with torch.no_grad():
+            return model(context)
+    finally:
+        handle.remove()

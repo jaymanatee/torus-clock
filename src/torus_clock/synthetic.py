@@ -21,4 +21,6 @@ def make_series(n: int, length: int, noise: float=0.5, seed: int=0):
         "x": x.astype(np.float32),
         "daily_phase": np.mod(theta, 2*np.pi),
         "weekly_phase": np.mod(omega, 2*np.pi),
+        "amp": amp[:, 0],                  # overall scale of the series
+        "weekly_amp": w[:, 0],             # weekly strength, relative to daily
     }
